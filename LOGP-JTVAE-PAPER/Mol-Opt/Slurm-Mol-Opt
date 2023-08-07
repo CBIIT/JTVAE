@@ -1,0 +1,43 @@
+#!/bin/bash
+
+#SBATCH --job-name=JTVAE-MOL
+
+#SBATCH --partition=norm
+##SBATCH --partition=short
+
+#SBATCH --ntasks=1
+#SBATCH --ntasks-per-core=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=100g
+#SBATCH --time=09:00:00
+
+source /home/$USER/.bashrc
+hostname -s
+
+JTVAE_CPU_PATH="/mnt/projects/ATOM/blackst/GMD/JTVAE/CPU-P3"
+conda activate JTVAE-CPU-P3
+export PYTHONPATH=$JTVAE_CPU_PATH
+
+WRK="/mnt/projects/ATOM/blackst/GMD/LOGP-JTVAE-PAPER/Mol-Opt"
+echo $WRK
+cd $WRK
+
+MOL="$JTVAE_CPU_PATH""/fast_bo/run_bo.py"
+VOC="../Vocabulary/all_vocab.txt"
+MOD="../Train/MODEL-TRAIN/model.epoch-35"
+DAT="DATA"
+SEE=3
+RES="RESULTS-100/RESULTS-""$SEE"
+ITE=5
+KEE=100
+OUT="RESULTS-100/mol-opt.out-1"
+
+python -u $MOL -v $VOC        \
+               -m $MOD        \
+               -d $DAT        \
+               -r $RES        \
+               -s $SEE        \
+               -i $ITE        \
+               -k $KEE        \
+               >& $OUT
+

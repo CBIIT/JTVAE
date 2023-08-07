@@ -1,0 +1,169 @@
+There are four steps to training & evaluating a Fast-JTVAE Autoencoder/Model
+
+Note that examples below use the same data utilized in the
+penalized logP octanol-water partition coefficient research case
+exactly as described in the original JTVAE paper.
+
+LOGP-JTVAE-PAPER/Raw-Data/ZINC/all.txt
+LOGP-JTVAE-PAPER/Raw-Data/ZINC/train.txt
+LOGP-JTVAE-PAPER/Raw-Data/ZINC/test.txt
+
+The scripts/directories are in LOGP-JTVAE-PAPER/Raw-Data/ZINC
+                                               /Vocabulary
+                                               /Preprocess
+                                               /Train
+                                               /Recon-Eval
+
+-----------------------------------------------------------------------------
+1. Vocabulary determination (library of functional units for a SMILES dataset)
+
+   Full dataset of SMILES/molecules is decomposed/analyzed into a
+   list of unique functional units (vocabulary)
+
+   Run type:   [CPU-single processor] 
+
+   Executable: Path-to/JTVAE/CPU-P3/fast_jtnn/mol_tree.py
+
+   Options:    No real options except input data (SMILES) & output file where
+               vocabulary list will be stored.
+
+   Example: see LOGP-JTVAE-PAPER/Vocabulary/Slurm-Vocab-CPU
+
+VOC="$JTVAE_CPU_PATH""/fast_jtnn/mol_tree.py"
+DAT="../Raw-Data/ZINC/all.txt"
+OUT="all_vocab.txt"
+
+time python $VOC < $DAT > $OUT
+
+-----------------------------------------------------------------------------
+2. Preprocessing
+
+   Training datset of SMILES/molecules is preprocessed and split/output
+   into a specified number of pickled files (default = 100)
+
+   Run type:  [CPU-multiple processors: 36 = regular node on FRCE]
+
+   Executable: Path-to/JTVAE/CPU-P3/fast_molvae/preprocess.py
+
+   Options:
+
+-t | Training data file/location
+-n | Number of splits (default = 100)
+-j | Number of processors to use (default = 16)
+-d | Directory to store processed files (must exist)
+
+   Example: See LOGP-JTVAE-PAPER/Preprocess/Slurm-Preprocess-CPU
+
+PRE="$JTVAE_CPU_PATH""/fast_molvae/preprocess.py"
+TRA="../Raw-Data/ZINC/train.txt"
+DIR="zinc-processed-train"
+OUT="preprocess-train.out"
+
+python $PRE -t $TRA       \
+            -n 100 -j 36  \
+            -d $DIR       \
+            >& $OUT
+
+-----------------------------------------------------------------------------
+3. Training
+
+   Autoencoder/Model is trained using the preprocessed files described above
+
+   Run Type:   [GPU-single card with multiple workers/CPU-processors (4-8)]
+
+   Executable: Path-to/JTVAE/GPU-P3/fast_molvae/vae_train_gpu.py
+
+   Options:    Very many!!! But the default training parameters should be ok.
+               Of course if you feel the need you can play with them.
+               The required options/specifications are:
+
+--train       | Location/directory containing preprocessed files (see above step)
+--vocab       | Location of Vocabulary file determined for full dataset
+--save_dir    | Location/directory (must exist) to save Models (each epoch)
+--num_workers | Number of CPU-processors/workers to use (not GPU cards)
+
+   Example:   See LOGP-JTVAE-PAPER/Train/Slurm-Train-GPU
+
+VAE="$JTVAE_GPU_PATH""/fast_molvae/vae_train_gpu.py"
+TRA="../Preprocess/zinc-processed-train"
+VOC="../Vocabulary/all_vocab.txt"
+DIR="MODEL-TRAIN"
+OUT="train.out"
+
+python -u $VAE --train $TRA      \
+               --vocab $VOC      \
+               --save_dir $DIR   \
+               --num_workers 8   \
+                >& $OUT
+
+-----------------------------------------------------------------------------
+4. Reconstruction evaluation
+
+   A Test dataset of SMILES/molecules is reconstructed using trained Model:
+      * SMILES -> encode -> latent vectors -> decode -> SMILES' *
+   The number/percent of SMILES = SMILES' successful reconstructs is computed.
+   ***
+   Note that the way the encoding/decoding is done here, the exact same 
+   result is obtained for a given SMILES string, so there is no need for
+   replicate runs. In the original JTVAE code, the encoding included
+   extra steps that introduced teeny randomicity:
+
+        tree_log_var = -torch.abs(self.T_var(tree_vecs)) #Following Mueller et al.
+        mol_log_var = -torch.abs(self.G_var(mol_vecs)) #Following Mueller et al.
+        epsilon = create_var(torch.randn(1, self.latent_size), False)
+        tree_vec = tree_mean + torch.exp(tree_log_var) * epsilon
+        epsilon = create_var(torch.randn(1, self.latent_size), False)
+        mol_vec = mol_mean + torch.exp(mol_log_var) * epsilon
+
+   However, during generation of latent vectors for the actual molecule
+   optimization/Bayesian optimization, these steps are not done, i.e., the 
+   exact same latent vector is genrated every time. As such, for now I have
+   removed the above steps from the encoding for reconstruction evaluation
+   and, of course, the generation of latent vectors for molecule optimization.
+
+   Additionally, because the original decoding included stereoisomerism, but
+   via comparison tests (with full list of possible stereoisomers), the 
+   decoded molecule could change its stereoisomerism. This introduced another
+   'random' aspect and this is why the original paper did reconstuction
+   evaluation by decoding 10 times. However, there is no steroisomerism in 
+   the fast/new JTVAE (a choice made by the original developers presumably
+   because it didn't add anything) so the same decoded molecule now results
+   every time. 
+   I'm sure people will want to discuss this more...and we can do that :-)
+   ***
+
+   Run Type: [CPU - multiple processors: 36 = regular node]
+
+   Executable: Path-to/JTVAE/CPU-P3/fast_molvae/EDF.py
+
+   Options: Many fun ones! If you changed the Model parameters (above)
+            then you have to specify them - see fast_molvae/EDF.py for how
+            to do this. The main options/specifications are:
+
+-d | Dataset of SMILES/molecules to reconstruct - encode/decode
+-v | Location/file containing vocabulary (for full dataset)
+-m | Location/file containing Model
+-c | Number of CPU processors to use, 18 is good for 5000 SMILES
+-b | Batch size - 40 is good for 5000 SMILES, 200 is good for 250K
+-p | Include this (no parameter after) to see lots of joblib.Parallel output
+-f | Only include this (no parameter after) if you want to print out failed
+     SMILES reconstructs
+
+   Example: See LOGP-JTVAE-PAPER/Recon-Eval/Slurm-EDF-CPU
+
+EDF="$JTVAE_CPU_PATH""/fast_molvae/EDF.py"
+DAT="../Raw-Data/ZINC/test.txt"
+VOC="../Vocabulary/all_vocab.txt-save"
+MOD="../Train/MODEL-TRAIN/model.epoch-35"
+OUT="EDF-Test.out-35"
+
+python -u $EDF -d $DAT        \
+               -v $VOC        \
+               -m $MOD        \
+               -c 18 -b 40    \
+               >& $OUT
+
+# Add -p above for lots of joblib.Parallel output
+# Add -f above to print failed reconstructs
+
+

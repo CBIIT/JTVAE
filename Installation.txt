@@ -1,0 +1,44 @@
+cd /mnt/projects/ATOM/SHARE/
+cp GMD-JTVAE.tar.gz /mnt/projects/ATOM/username/your-chosen-path 
+cd /mnt/projects/ATOM/username/your-chosen-path
+tar -xf GMD-JTVAE.tar.gz
+
+####### JTVAE-CPU-P3 ######################################
+
+(conda deactivate)
+conda create --name JTVAE-CPU-P3 python=3.8
+conda activate JTVAE-CPU-P3
+export PYTHONPATH=/mnt/projects/ATOM/username/GMD/JTVAE/CPU-P3
+
+---
+
+conda install -c conda-forge rdkit
+conda install numpy 
+conda install scipy
+conda install joblib
+conda install networkx 
+
+conda install pytorch torchvision cpuonly -c pytorch
+
+cd /mnt/projects/ATOM/username/GMD/JTVAE/CPU-P3/fast_bo/Theano-master
+python setup.py install
+
+####### JTVAE-GPU-P3 ######################################
+
+(conda deactivate)
+conda create --name JTVAE-GPU-P3 python=3.8
+conda activate JTVAE-GPU-P3
+export PYTHONPATH=/mnt/projects/ATOM/username/GMD/JTVAE/GPU-P3
+
+---
+
+conda install -c conda-forge rdkit
+conda install numpy
+conda install scipy
+
+conda install pytorch torchvision torchaudio cudatoolkit=10.2 -c pytorch
+
+###########################################################
+
+The raw codes are in JTVAE/CPU-P3
+                          /GPU-P3

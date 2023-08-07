@@ -1,0 +1,30 @@
+#!/bin/bash
+
+#SBATCH --job-name=JTVAE-VOC
+
+#SBATCH --partition=norm
+##SBATCH --partition=short
+
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=100g
+#SBATCH --time=01:00:00
+
+source /home/blackst/.bashrc
+hostname -s
+
+JTVAE_CPU_PATH="/mnt/projects/ATOM/blackst/GMD/JTVAE/CPU-P3"
+conda activate JTVAE-CPU-P3
+export PYTHONPATH=$JTVAE_CPU_PATH
+
+WRK="/mnt/projects/ATOM/blackst/GMD/LOGP-JTVAE-PAPER/Vocabulary"
+echo $WRK
+cd $WRK
+
+VOC="$JTVAE_CPU_PATH""/fast_jtnn/mol_tree.py"
+DAT="../Raw-Data/ZINC/all.txt"
+OUT="all_vocab.txt"
+
+time python $VOC < $DAT > $OUT
+
+echo "done"

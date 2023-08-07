@@ -1,0 +1,41 @@
+#!/bin/bash
+
+#SBATCH --job-name=JTVAE-GEN
+
+#SBATCH --partition=norm
+##SBATCH --partition=short
+
+#SBATCH --ntasks=1
+#SBATCH --ntasks-per-core=1
+#SBATCH --cpus-per-task=36
+#SBATCH --exclusive
+#SBATCH --mem=750g
+#SBATCH --time=09:00:00
+
+source /home/$USER/.bashrc
+hostname -s
+
+JTVAE_CPU_PATH="/mnt/projects/ATOM/blackst/GMD/JTVAE/CPU-P3"
+conda activate JTVAE-CPU-P3
+export PYTHONPATH=$JTVAE_CPU_PATH
+
+WRK="/mnt/projects/ATOM/blackst/GMD/LOGP-JTVAE-PAPER/Mol-Opt"
+echo $WRK
+cd $WRK
+
+GEN="$JTVAE_CPU_PATH""/fast_molvae/gen_latent.py"
+DAT="../Raw-Data/ZINC/all.txt"
+VOC="../Vocabulary/all_vocab.txt"
+MOD="../Train/MODEL-TRAIN/model.epoch-35"
+LAT="DATA/latent_features.txt"
+OUT="gen_latent.out"
+
+python -u $GEN -d $DAT        \
+               -v $VOC        \
+               -m $MOD        \
+               -c 36 -b 200   \
+               -o $LAT        \
+               >& $OUT
+
+# Add -p above for lots of joblib.Parallel output
+

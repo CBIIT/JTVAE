@@ -1,0 +1,178 @@
+There are four steps to doing the same research problem as described in the
+paper - penalized logP octanol-water partition coefficient
+
+The scripts are in LOGP-JTVAE-PAPER/Mol-Opt
+
+-----------------------------------------------------------------------------
+1. Generation of latent vectors for full dataset (Raw-Data/ZINC/all.txt)
+
+   Full dataset of SMILES/molecules is encoded -> latent vectors
+
+   Run type:   [CPU-multiple processors: 36 cores = regular node on FRCE] 
+
+   Executable: Path-to/JTVAE/CPU-P3/fast_molvae/gen_latent.py
+
+   Options: Many fun ones! If you changed the Model parameters in training
+            then you have to specify them - see fast_molvae/gen_latent.py 
+            for how to do this. The main options/specifications are:
+
+-d | Dataset of SMILES/molecules to encode
+-v | Location/file containing vocabulary (for full dataset)
+-m | Location/file containing Model
+-c | Number of CPU processors to use, 36 is good for 250K SMILES (~8 mins)
+-b | Batch size - 200 is good for 250K SMILES
+-o | Location/File to store latent vectors, e.g., DATA/latent_features.txt
+   | For the research case here, you must use the name "latent_features.txt"
+-p | Include this (no parameter after) to see lots of joblib.Parallel output
+
+   Example: See LOGP-JTVAE-PAPER/Mol-Opt/Slurm-Gen-Latent
+
+GEN="$JTVAE_CPU_PATH""/fast_molvae/gen_latent.py"
+DAT="../Raw-Data/ZINC/all.txt"
+VOC="../Vocabulary/all_vocab.txt-save"
+MOD="../Train/MODEL-TRAIN/model.epoch-35"
+LAT="DATA/latent_features.txt"
+OUT="gen_latent.out"
+
+python -u $GEN -d $DAT        \
+               -v $VOC        \
+               -m $MOD        \
+               -c 36 -b 200   \
+               -o $LAT        \
+               >& $OUT
+
+# Add -p above for lots of joblib.Parallel output
+
+-----------------------------------------------------------------------------
+2. Computation of scores
+
+   The score for a SMILES string/molecule is a sum of 3 individual properties:
+       LogP octanol-water partition coefficient
+       Synthetic accessability
+       Cycle penalty
+
+   Run type:  [CPU-multiple processors: 4 default, but code not very parallel]
+
+   Executable: Path-to/JTVAE/CPU-P3/fast_bo/logp_prop.py
+
+   Options:
+
+-d | Dataset of SMILES/molecules to compute properties
+-o | Directory (must exist) to put scores/properties
+   | This must be same directory where latent_features.txt is stored
+
+   Example: See LOGP-JTVAE-PAPER/Mol-Opt/Slurm-LogP-Property
+
+GEN="$JTVAE_CPU_PATH""/fast_bo/logp_prop.py"
+DAT="../Raw-Data/ZINC/all.txt"
+DIR="DATA"
+OUT="logp_prop.out"
+
+python -u $GEN -d $DAT        \
+               -o $DIR        \
+               >& $OUT
+
+-----------------------------------------------------------------------------
+3. Molecule optimization/Bayesian optimization
+
+   Do molecule optimization akin to that described in the JTVAE paper
+
+   - Note there are 10 separate runs, each with different random seed (1-10)
+   The results are stored in specified directory names, with value of
+   random seed as suffix, e.g., RESULTS-100/RESULTS-1
+   for a run that uses all data (-k 100) and random seed = 1 (-s 1).
+   The example RESULTS-100 directory, that will contain RESULTS-i (i=1,10)
+   subdirectories must exist with your choice of name.
+
+   - Each run (with specified random seed) does 5 iterations of improvement.
+   The results from the first iteration (0) are, as I have opined, probably
+   the most important because for most actual research cases you cannot
+   determine accurate properties for the "new" molecules. In this particular
+   research case, the new/optimized latent vectors are decoded to SMILES
+   and exact properties (3) are computed for them. These are then added to
+   the dataset and another iteration/improvement step is done. The paper
+   did 5 iterations, for each of random seed 1 -> 10.
+
+   - I have added the option to use specified top percent of molecules by
+   score with default 100 (-k 100). Using -k 50 gives remarkably good
+   results, I'll let the user decide how much they want to explore this.
+
+   Run type:  [CPU-multiple processors: 8 default, 8/16 fastest]
+
+   Executable: Path-to/JTVAE/CPU-P3/fast_bo/run_bo.py
+
+   Options:    A few
+
+-v | Location/file containing vocabulary (for full dataset)
+-m | Location/file containing Model
+-d | Location/directory containing latent vectors & data computed above
+-r | Directory to put results in: X/RESULTS-i (X must exist, i=random seed)
+-s | Random seed (1 - 10)
+-i | Number of iterations (default = 5 to match paper)
+-k | Percent of top molecules by score to use for Second Model training
+
+   Example: See LOGP-JTVAE-PAPER/Mol-Opt/Slurm-Mol-Opt
+
+MOL="$JTVAE_CPU_PATH""/fast_bo/run_bo.py"
+VOC="../Vocabulary/all_vocab.txt-save"
+MOD="../Train/MODEL-TRAIN/model.epoch-35"
+DAT="DATA"
+RES="RESULTS-100/RESULTS-1"
+SEE=1
+ITE=5
+KEE=100
+OUT="RESULTS-100/mol-opt.out-1"
+
+python -u $MOL -v $VOC        \
+               -m $MOD        \
+               -d $DAT        \
+               -r $RES        \
+               -s $SEE        \
+               -i $ITE        \
+               -k $KEE        \
+               >& $OUT
+
+-----------------------------------------------------------------------------
+4. Analysis of results
+
+   Upon activation of JTVAE-CPU-P3 (conda activate JTVAE-CPU-P3) and setting
+   PYTHONPATH (export PYTHONPATH=Path-to/JTVAE/CPU-P3), 
+   the code $PYTHONPATH/fast_bo/print_results.py will go through each 
+   directory (for each random seed) and collate all unique optimized molecules
+   (by SMILES), sort them by decreasing score, and print them to a results file.
+   I have added the option -n to only collate molecules/scores for iterations up
+   to and including that specified. E.g., -n 1 will only collate molecules/scores
+   for the very first iteration. As I have opined, the results from the first
+   iteration are probably the most important in evaluating how well a GMD method
+   is working, because in most research projects, it will not be possible to 
+   determine accurate properties for the new/optimized molecules. Of couse,
+   I'm happy to discuss more with anybody who wants to :-)
+   In any case, I recommend for this research case to collate results for -n 1
+   and -n 5 (since there are 5 total iterations) for evaluations.
+
+   Run type:  Command line since it's only data parsing
+
+   Executable: $PYTHONPATH/fast_bo/print_results.py
+               Note that this should be run in the directory that contains 
+               the subdirectories for random seed 1-10 runs, e.g., RESULTS-100
+
+   Options:    Only two
+
+-d | Prefix for directory names of results for each random seed, 
+     e.g., -d RESULTS-
+-n | Number of iterations to collate results for - really only 1 or 5 here.
+
+   Example: In directory RESULTS-100 (for example)
+            $PYTHONPATH/fast_bo/print_results.py -d RESULTS- -n 1 > results-100-0.txt
+            or
+            $PYTHONPATH/fast_bo/print_results.py -d RESULTS- -n 5 > results-100-all.txt
+
+-----------------------------------------------------------------------------
+5. Original JTVAE results
+
+   The results published in the paper using the original JTVAE are in:
+   path-to/LOGP-JTVAE-PAPER/Mol-Opt/ORIGINAL-JTVAE-RESULTS
+   The collated results for 1st and all (5) iterations are in:
+       orig-jtvae-results-0.txt
+       orig-jtvae-results-all.txt
+    

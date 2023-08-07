@@ -1,0 +1,21 @@
+#!/bin/bash
+
+#SBATCH --job-name=recon-ver
+
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=100g
+#SBATCH --time=8:00:00
+
+source /home/blackst/.bashrc
+hostname -s
+
+conda activate atomsci
+
+WRK="/mnt/projects/ATOM/blackst/GMD/LOGP-JTVAE-PAPER/data_collection/failed_vocab_decon"
+echo $WRK
+cd $WRK
+
+python -u "/mnt/projects/ATOM/blackst/GMD/LOGP-JTVAE-PAPER/data_collection/failed_vocab_decon/reconstruction_verification.py"
+
+echo "done"

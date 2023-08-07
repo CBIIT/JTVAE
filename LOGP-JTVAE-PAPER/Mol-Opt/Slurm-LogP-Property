@@ -1,0 +1,33 @@
+#!/bin/bash
+
+#SBATCH --job-name=JTVAE-LOGP
+
+#SBATCH --partition=norm
+##SBATCH --partition=short
+
+#SBATCH --ntasks=1
+#SBATCH --ntasks-per-core=1
+#SBATCH --mem=100g
+#SBATCH --cpus-per-task=4
+#SBATCH --time=09:00:00
+
+source /home/$USER/.bashrc
+hostname -s
+
+JTVAE_CPU_PATH="/mnt/projects/ATOM/blackst/GMD/JTVAE/CPU-P3"
+conda activate JTVAE-CPU-P3
+export PYTHONPATH=$JTVAE_CPU_PATH
+
+WRK="/mnt/projects/ATOM/blackst/GMD/LOGP-JTVAE-PAPER/Mol-Opt"
+echo $WRK
+cd $WRK
+
+GEN="$JTVAE_CPU_PATH""/fast_bo/logp_prop.py"
+DAT="../Raw-Data/ZINC/all.txt"
+DIR="DATA"
+OUT="logp_prop.out"
+
+python -u $GEN -d $DAT        \
+               -o $DIR        \
+               >& $OUT
+

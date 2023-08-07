@@ -1,0 +1,36 @@
+#!/bin/bash
+
+#SBATCH --job-name=JTVAE-PRE
+
+#SBATCH --partition=norm
+##SBATCH --partition=short
+
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --ntasks-per-core=1
+#SBATCH --exclusive
+#SBATCH --cpus-per-task=36
+#SBATCH --mem=750g
+#SBATCH --time=24:00:00
+
+source /home/blackst/.bashrc
+hostname -s
+
+JTVAE_CPU_PATH="/mnt/projects/ATOM/blackst/GMD/JTVAE/CPU-P3"
+conda activate JTVAE-CPU-P3
+export PYTHONPATH=$JTVAE_CPU_PATH
+
+WRK="/mnt/projects/ATOM/blackst/GMD/LOGP-JTVAE-PAPER/Preprocess"
+echo $WRK
+cd $WRK
+
+PRE="$JTVAE_CPU_PATH""/fast_molvae/preprocess.py"
+TRA="../Raw-Data/ZINC/train.txt"
+DIR="zinc-processed-train"
+OUT="preprocess-train.out"
+
+python $PRE -t $TRA       \
+            -n 100 -j 36  \
+            -d $DIR       \
+            >& $OUT
+
