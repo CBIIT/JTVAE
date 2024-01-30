@@ -7,7 +7,7 @@
 
 #SBATCH --ntasks=1
 #SBATCH --ntasks-per-core=1
-#SBATCH --cpus-per-task=18
+#SBATCH --cpus-per-task=36
 #SBATCH --mem=200g
 #SBATCH --time=09:00:00
 
@@ -25,13 +25,13 @@ cd $WRK
 EDF="$JTVAE_CPU_PATH""/fast_molvae/EDF.py"
 DAT="../Raw-Data/ZINC/test.txt"
 VOC="../Vocabulary/all_vocab.txt"
-MOD="../Train/MODEL-TRAIN/model.epoch-35"
+MOD="../Train/MODEL-TRAIN-test/model.epoch-39"
 OUT="EDF-Test.out-35"
 
 python -u $EDF -d $DAT        \
                -v $VOC        \
                -m $MOD        \
-               -c 18 -b 40    \
+               -c 36 -b 40    \
                >& $OUT
 
 # Add -f above to print failed reconstructs

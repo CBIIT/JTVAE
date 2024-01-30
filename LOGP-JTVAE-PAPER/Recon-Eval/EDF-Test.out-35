@@ -1,11 +1,11 @@
-Encoding-Decoding is using    18 processes/cores
+Encoding-Decoding is using    36 processes/cores
 Number of SMILES           =  5000
 Batch size in joblib       =  40
 Verbose in joblib.Parallel =  False
 Print failed reconstructs  =  False
 Starting latent_vectors: Total time (to load data/model) = 2 seconds 
 
-Encoding computation time, Total time = 21, 23 seconds
-Decoding computation time, Total time = 80, 103 seconds
-Number, percent of successfully reconstructed SMILES = 4321, 86.42 %
+Encoding computation time, Total time = 11, 13 seconds
+Decoding computation time, Total time = 56, 70 seconds
+Number, percent of successfully reconstructed SMILES = 4232, 84.64 %
 

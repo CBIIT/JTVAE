@@ -1,9 +1,18 @@
 import torch
+from functools import reduce
+import operator as op
+#print("Before imports: ")
+#print(torch.cuda.mem_get_info()[0]/1000000000)
+#print()
+
 import torch.nn as nn
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
+
+from torch.nn.parallel import DistributedDataParallel as DDP #Testing
+from torch.distributed import init_process_group, destroy_process_group
 
 import math, random, sys
 import numpy as np
@@ -12,8 +21,11 @@ from collections import deque
 import pickle
 import rdkit
 import time
+import gc, os
 
 from fast_jtnn import *
+
+import traceback
 
 lg = rdkit.RDLogger.logger() 
 lg.setLevel(rdkit.RDLogger.CRITICAL)
@@ -59,6 +71,11 @@ parser.add_argument('--kl_anneal_iter', type=int, default=2000)
 parser.add_argument('--print_iter', type=int, default=1000)
 parser.add_argument('--save_iter', type=int, default=5000)
 
+#SB - local_rank is a parameter used by DDP for distributed GPU training
+#parser.add_argument("--local_rank", type=int, default=0)
+parser.add_argument("--mult_gpus", type=bool, default=False)
+
+
 #JI-Add - Default number of workers = 4
 parser.add_argument('--num_workers', type=int, default=4)
 
@@ -68,7 +85,20 @@ print (args)
 vocab = [x.strip("\r\n ") for x in open(args.vocab)] 
 vocab = Vocab(vocab)
 
-model = JTNNVAE(vocab, args.hidden_size, args.latent_size, args.depthT, args.depthG).cuda()
+args.mult_gpus = True
+
+### STB - DDP related code
+if args.mult_gpus == True:
+    local_rank = int(os.environ["LOCAL_RANK"])
+    torch.cuda.set_device(local_rank)
+
+    init_process_group(backend='nccl')
+###
+
+model = JTNNVAE(vocab, args.hidden_size, args.latent_size, args.depthT, args.depthG).cuda(device=local_rank)
+if args.mult_gpus == True:
+    #model = DDP(model, device_ids=[local_rank], output_device=local_rank) #Test DDP
+    model = DDP(model, device_ids=[local_rank]) #Test DDP
 print (model)
 
 for param in model.parameters():
@@ -101,7 +131,7 @@ failed = []
 
 for epoch in range(args.epoch):
     shuffle = True
-    loader = MolTreeFolder(args.train, vocab, args.batch_size, args.num_workers, shuffle)
+    loader = MolTreeFolder(args.train, vocab, args.batch_size, args.num_workers, shuffle, args.mult_gpus)
     
     for batch in loader:
 
@@ -125,9 +155,13 @@ for epoch in range(args.epoch):
         except Exception as e:
             print("STB train EXCEPTION") #STB: TEMP
             print (e)
-            
-            print(batch)
+
+            #STB: If we want to print out the explicit exception with full trace
+            # TODO: we could add an --explicit parameter to make this debugging simpler or a --debug mode
+            #print(''.join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
+
             continue
+        
 
         p1_time = p1_time + time.time() - curr_time
         curr_time = time.time()
@@ -166,10 +200,16 @@ for epoch in range(args.epoch):
        print ("New learning rate: %.6f" % new_lr)
     
     print ('Total epochs, iterations = %d, %d ' % (epoch, total_step))
-
-    torch.save(model.state_dict(), args.save_dir + "/model.epoch-" + str(epoch))
+    
+    if local_rank == 0:
+        if args.mult_gpus == True:
+            ckp = model.module.state_dict()
+        else:
+            ckp = model.state_dict()
+        torch.save(ckp, args.save_dir + "/model.epoch-" + str(epoch))
     
 end_time = time.time()
 tot_time = end_time - start_time
 print ('Total time to run = %.0f seconds' % tot_time)
 
+torch.distributed.destroy_process_group()

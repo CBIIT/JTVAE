@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from collections import deque
 from fast_jtnn.mol_tree import Vocab, MolTree
-from fast_jtnn.nnutils import create_var, index_select_ND
+from fast_jtnn.nnutils import create_var, index_select_ND, index_select_sum
 
 class JTNNEncoder(nn.Module):
 
@@ -30,8 +30,14 @@ class JTNNEncoder(nn.Module):
         fmess = index_select_ND(fnode, 0, fmess)
         messages = self.GRU(messages, fmess, mess_graph)
 
-        mess_nei = index_select_ND(messages, 0, node_graph)
-        node_vecs = torch.cat([fnode, mess_nei.sum(dim=1)], dim=-1)
+        ###
+        #New function proposed by Kevin to resolve "Cuda out of memory" errors
+        #mess_nei = index_select_ND(messages, 0, node_graph)
+        #node_vecs = torch.cat([fnode, mess_nei.sum(dim=1)], dim=-1)
+        mess_nei = index_select_sum(messages, 0, node_graph)
+        node_vecs = torch.cat([fnode, mess_nei], dim=-1)
+        ###
+
         node_vecs = self.outputNN(node_vecs)
 
         max_len = max([x for _,x in scope])
