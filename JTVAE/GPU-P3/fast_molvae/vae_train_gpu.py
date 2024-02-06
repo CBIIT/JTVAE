@@ -73,8 +73,7 @@ parser.add_argument('--save_iter', type=int, default=5000)
 
 #SB - local_rank is a parameter used by DDP for distributed GPU training
 #parser.add_argument("--local_rank", type=int, default=0)
-parser.add_argument("--mult_gpus", type=bool, default=False)
-
+parser.add_argument("--mult_gpus", default=False, action='store_true')
 
 #JI-Add - Default number of workers = 4
 parser.add_argument('--num_workers', type=int, default=4)
@@ -82,13 +81,13 @@ parser.add_argument('--num_workers', type=int, default=4)
 args = parser.parse_args()
 print (args)
 
+
 vocab = [x.strip("\r\n ") for x in open(args.vocab)] 
 vocab = Vocab(vocab)
 
-args.mult_gpus = True
-
 ### STB - DDP related code
 if args.mult_gpus == True:
+
     local_rank = int(os.environ["LOCAL_RANK"])
     torch.cuda.set_device(local_rank)
 

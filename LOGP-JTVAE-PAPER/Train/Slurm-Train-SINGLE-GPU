@@ -34,5 +34,4 @@ python -u $VAE --train $TRA      \
                --vocab $VOC      \
                --save_dir $DIR   \
                --num_workers 8   \
-               --mult_gpus False \
                 >& $OUT

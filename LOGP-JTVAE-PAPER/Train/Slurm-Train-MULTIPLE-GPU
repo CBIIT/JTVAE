@@ -43,4 +43,5 @@ torchrun --standalone --nproc_per_node=gpu /mnt/projects/ATOM/blackst/GMD/JTVAE/
                         --save_dir /mnt/projects/ATOM/blackst/GMD/LOGP-JTVAE-PAPER/Train/MODEL-TRAIN-test \
                         --vocab /mnt/projects/ATOM/blackst/GMD/LOGP-JTVAE-PAPER/Vocabulary/all_vocab.txt \
                         --num_workers 8 \
+                        --mult_gpus \
                         >& train-monitor.out
