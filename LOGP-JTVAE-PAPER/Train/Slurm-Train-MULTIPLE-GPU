@@ -1,0 +1,47 @@
+#!/bin/bash
+
+#SBATCH --job-name=JTVAE-TRA
+
+#SBATCH --partition=gpu
+#V100
+#SBATCH --gres=gpu:v100:2
+#P100
+##SBATCH --gres=gpu:p100:1
+
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=100g
+#SBATCH --time=119:00:00
+
+source /home/blackst/.bashrc
+hostname -s
+
+JTVAE_GPU_PATH="/mnt/projects/ATOM/blackst/GMD/JTVAE/GPU-P3"
+conda activate JTVAE-GPU-P3
+export PYTHONPATH=$JTVAE_GPU_PATH
+
+WRK="/mnt/projects/ATOM/blackst/GMD/LOGP-JTVAE-PAPER/Train"
+echo $WRK
+cd $WRK
+
+VAE="$JTVAE_GPU_PATH""/fast_molvae/vae_train_gpu.py"
+TRA="../Preprocess/zinc-processed-train"
+VOC="../Vocabulary/all_vocab.txt"
+DIR="/mnt/projects/ATOM/blackst/GMD/LOGP-JTVAE-PAPER/Train/MODEL-TRAIN-test"
+OUT="train-monitor.out"
+
+#Below is the command to run the training on one GPU.
+#python -u $VAE --train $TRA      \
+#               --vocab $VOC      \
+#               --save_dir $DIR   \
+#               --num_workers 8   \
+#                >& $OUT
+
+#Below is the command to run the training on multiple GPU's.
+torchrun --standalone --nproc_per_node=gpu /mnt/projects/ATOM/blackst/GMD/JTVAE/GPU-P3/fast_molvae/vae_train_gpu.py \
+                        --train /mnt/projects/ATOM/blackst/GMD/LOGP-JTVAE-PAPER/Preprocess/zinc-processed-train \
+                        --save_dir /mnt/projects/ATOM/blackst/GMD/LOGP-JTVAE-PAPER/Train/MODEL-TRAIN-test \
+                        --vocab /mnt/projects/ATOM/blackst/GMD/LOGP-JTVAE-PAPER/Vocabulary/all_vocab.txt \
+                        --num_workers 8 \
+                        --mult_gpus \
+                        >& train-monitor.out

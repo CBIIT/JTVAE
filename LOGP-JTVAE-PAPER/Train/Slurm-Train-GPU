@@ -27,11 +27,12 @@ cd $WRK
 VAE="$JTVAE_GPU_PATH""/fast_molvae/vae_train_gpu.py"
 TRA="../Preprocess/zinc-processed-train"
 VOC="../Vocabulary/all_vocab.txt"
-DIR="MODEL-TRAIN-TEST"
+DIR="MODEL-TRAIN"
 OUT="train.out"
 
 python -u $VAE --train $TRA      \
                --vocab $VOC      \
                --save_dir $DIR   \
                --num_workers 8   \
+               --mult_gpus False \
                 >& $OUT

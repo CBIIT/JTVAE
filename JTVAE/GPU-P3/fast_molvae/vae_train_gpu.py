@@ -1,9 +1,18 @@
 import torch
+from functools import reduce
+import operator as op
+#print("Before imports: ")
+#print(torch.cuda.mem_get_info()[0]/1000000000)
+#print()
+
 import torch.nn as nn
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
+
+from torch.nn.parallel import DistributedDataParallel as DDP #Testing
+from torch.distributed import init_process_group, destroy_process_group
 
 import math, random, sys
 import numpy as np
@@ -12,8 +21,11 @@ from collections import deque
 import pickle
 import rdkit
 import time
+import gc, os
 
 from fast_jtnn import *
+
+import traceback
 
 lg = rdkit.RDLogger.logger() 
 lg.setLevel(rdkit.RDLogger.CRITICAL)
@@ -22,8 +34,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--train', required=True)
 parser.add_argument('--vocab', required=True)
 parser.add_argument('--save_dir', required=True)
+
+#Use the load_epoch parameter to restart the model training from a certain training iteration.
+# If model training crashes or you run out of computation time on your system, this enables
+# the model training to pick up from a previous training iteration that completed. That
+# model file will be loaded in and the current epoch value will be set to this number.
 parser.add_argument('--load_epoch', type=int, default=0)
 
+#These parameters define how the latent space will be set up
 parser.add_argument('--hidden_size', type=int, default=450)
 parser.add_argument('--batch_size', type=int, default=32)
 parser.add_argument('--latent_size', type=int, default=128)
@@ -59,16 +77,42 @@ parser.add_argument('--kl_anneal_iter', type=int, default=2000)
 parser.add_argument('--print_iter', type=int, default=1000)
 parser.add_argument('--save_iter', type=int, default=5000)
 
+#parameter to let the code know if you want to activate DDP to parallelize GPU training on >1 GPU
+parser.add_argument("--mult_gpus", default=False, action='store_true')
+
+#If marked true, the exceptions will be returned explicitely to provide more information for debugging
+parser.add_argument("--debug", default=False, action='store_true')
+
 #JI-Add - Default number of workers = 4
 parser.add_argument('--num_workers', type=int, default=4)
 
 args = parser.parse_args()
 print (args)
 
+#Prepare the vocabulary for the model
 vocab = [x.strip("\r\n ") for x in open(args.vocab)] 
 vocab = Vocab(vocab)
 
-model = JTNNVAE(vocab, args.hidden_size, args.latent_size, args.depthT, args.depthG).cuda()
+### STB - DDP related code
+if args.mult_gpus == True:
+    print("Attempting to use more than one GPU")
+    local_rank = int(os.environ["LOCAL_RANK"]) #Environmental variable managed by Pytorch to tell the code which rank the GPU is for this instance
+    torch.cuda.set_device(local_rank)
+
+    init_process_group(backend='nccl')
+###
+
+model = JTNNVAE(vocab, args.hidden_size, args.latent_size, args.depthT, args.depthG)
+
+#If restarting from a certain training epoch, model must load in state dictionary before model is wrapped by DDP
+if args.load_epoch > 0:
+    model.load_state_dict(torch.load(args.save_dir + "/model.iter-" + str(args.load_epoch)))
+
+model = model.cuda(device=local_rank)
+
+if args.mult_gpus == True:
+    model = DDP(model, device_ids=[local_rank]) 
+
 print (model)
 
 for param in model.parameters():
@@ -76,9 +120,6 @@ for param in model.parameters():
         nn.init.constant_(param, 0)
     else:
         nn.init.xavier_normal_(param)
-
-if args.load_epoch > 0:
-    model.load_state_dict(torch.load(args.save_dir + "/model.iter-" + str(args.load_epoch)))
 
 print ("Model #Params: %dK" % (sum([x.nelement() for x in model.parameters()]) / 1000,))
 
@@ -88,7 +129,8 @@ scheduler = lr_scheduler.ExponentialLR(optimizer, args.anneal_rate)
 param_norm = lambda m: math.sqrt(sum([p.norm().item() ** 2 for p in m.parameters()]))
 grad_norm = lambda m: math.sqrt(sum([p.grad.norm().item() ** 2 for p in m.parameters() if p.grad is not None]))
 
-total_step = args.load_epoch
+#total_step = args.load_epoch
+total_step = 0
 beta0 = 0.0
 beta  = args.beta
 meters = np.zeros(4)
@@ -97,11 +139,10 @@ start_time = time.time()
 curr_time = time.time()
 bl_time = 0
 p1_time = 0
-failed = []
 
-for epoch in range(args.epoch):
+for epoch in range(args.load_epoch, args.epoch):
     shuffle = True
-    loader = MolTreeFolder(args.train, vocab, args.batch_size, args.num_workers, shuffle)
+    loader = MolTreeFolder(args.train, vocab, args.batch_size, args.num_workers, shuffle, args.mult_gpus)
     
     for batch in loader:
 
@@ -126,8 +167,11 @@ for epoch in range(args.epoch):
             print("STB train EXCEPTION") #STB: TEMP
             print (e)
             
-            print(batch)
+            if args.debug == True:
+                print(''.join(traceback.format_exception(etype=type(e), value=e, tb=e.__traceback__)))
+
             continue
+        
 
         p1_time = p1_time + time.time() - curr_time
         curr_time = time.time()
@@ -144,6 +188,7 @@ for epoch in range(args.epoch):
             print ('Total time = %.0f seconds' % time_100)
             print ('Batch processing time, model training time = %.0f, %.0f seconds' % (bl_time, p1_time))
 
+#Below code is commented out 
 #JI        if total_step % args.save_iter == 0:
 #JI            torch.save(model.state_dict(), args.save_dir + "/model.iter-" + str(total_step))
 
@@ -166,10 +211,16 @@ for epoch in range(args.epoch):
        print ("New learning rate: %.6f" % new_lr)
     
     print ('Total epochs, iterations = %d, %d ' % (epoch, total_step))
-
-    torch.save(model.state_dict(), args.save_dir + "/model.epoch-" + str(epoch))
+    
+    if local_rank == 0:
+        if args.mult_gpus == True:
+            ckp = model.module.state_dict()
+        else:
+            ckp = model.state_dict()
+        torch.save(ckp, args.save_dir + "/model.epoch-" + str(epoch))
     
 end_time = time.time()
 tot_time = end_time - start_time
 print ('Total time to run = %.0f seconds' % tot_time)
 
+torch.distributed.destroy_process_group()

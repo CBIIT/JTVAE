@@ -16,6 +16,20 @@ def index_select_ND(source, dim, index):
     target = source.index_select(dim, index.view(-1))
     return target.view(final_size)
 
+#New function proposed by Kevin to resolve "Cuda out of memory" errors
+def index_select_sum(source, dim, index):
+    """
+    Combine index_select and sum operations in a loop to avoid (some of) the CUDA out-of-memory errors
+    we get when calling index_select_ND in the assembly phase.
+    """
+    index_size = index.size()
+    n_nei = index_size[1] #number of neighbors
+    suffix_dim = source.size()[1]
+    ssum = torch.zeros(index_size[0], suffix_dim).cuda()
+    for i in range(n_nei):
+        ssum += source.index_select(dim, index[:,i])
+    return ssum
+
 def avg_pool(all_vecs, scope, dim):
     size = create_var(torch.Tensor([le for _,le in scope]))
     return all_vecs.sum(dim=dim) / size.unsqueeze(-1)

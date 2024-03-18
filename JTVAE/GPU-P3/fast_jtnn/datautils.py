@@ -1,13 +1,13 @@
 import torch
 from torch.utils.data import Dataset, DataLoader
 from fast_jtnn.mol_tree import MolTree
-import numpy as np
 from fast_jtnn.jtnn_enc import JTNNEncoder
 from fast_jtnn.mpn import MPN
 from fast_jtnn.jtmpn import JTMPN
-#JI import cPickle as pickle
 import pickle
 import os, random
+
+from torch.utils.data.distributed import DistributedSampler
 
 class PairTreeFolder(object):
 
@@ -46,9 +46,10 @@ class PairTreeFolder(object):
 
 class MolTreeFolder(object):
 
-    def __init__(self, data_folder, vocab, batch_size, num_workers=4, shuffle=True, assm=True, replicate=None):
+    def __init__(self, data_folder, vocab, batch_size, num_workers=4, shuffle=True, mult_gpus=False, assm=True, replicate=None):
         self.data_folder = data_folder
         self.data_files = [fn for fn in os.listdir(data_folder)]
+        #print(self.data_files)
 #JI
         random.shuffle(self.data_files)
 
@@ -58,6 +59,8 @@ class MolTreeFolder(object):
         self.shuffle = shuffle
         self.assm = assm
 
+        self.mult_gpus = mult_gpus
+
         if replicate is not None: #expand is int
             self.data_files = self.data_files * replicate
 
@@ -66,16 +69,22 @@ class MolTreeFolder(object):
             fn = os.path.join(self.data_folder, fn)
             with open(fn, 'rb') as f:
                 data = pickle.load(f)
-
             if self.shuffle: 
                 random.shuffle(data) #shuffle data before batch
 
             batches = [data[i : i + self.batch_size] for i in range(0, len(data), self.batch_size)]
+            
             if len(batches[-1]) < self.batch_size:
                 batches.pop()
 
             dataset = MolTreeDataset(batches, self.vocab, self.assm)
-            dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=self.num_workers, collate_fn=lambda x:x[0])
+            
+            if self.mult_gpus == True:
+                #For DDP, sampler must be set to DistributedSampler to ensure that each rank gets a different mini batch of molecules
+                dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=self.num_workers, collate_fn=lambda x:x[0], sampler=DistributedSampler(dataset))
+            else:
+                dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=self.num_workers, collate_fn=lambda x:x[0])
+            
             for b in dataloader:
                 yield b
 

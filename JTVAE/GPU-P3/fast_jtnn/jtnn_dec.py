@@ -6,7 +6,8 @@ from fast_jtnn.nnutils import create_var, GRU
 from fast_jtnn.chemutils import enum_assemble, set_atommap
 import copy
 
-MAX_NB = 15
+#MAX_NB = 15 # DEBUG - based on Kevin
+MAX_NB = 30
 MAX_DECODE_LEN = 100
 
 class JTNNDecoder(nn.Module):
@@ -87,21 +88,30 @@ class JTNNDecoder(nn.Module):
             cur_x = []
             cur_h_nei,cur_o_nei = [],[]
 
+            padding_save = copy.deepcopy(padding) #STB - DEBUG
+
             for node_x, real_y, _ in prop_list:
                 #Neighbors for message passing (target not included)
                 cur_nei = [h[(node_y.idx,node_x.idx)] for node_y in node_x.neighbors if node_y.idx != real_y.idx]
+                if len(cur_nei) > MAX_NB: # DEBUG - based on Kevin
+                    raise Exception(f"Too many neighbors for message passing: {len(cur_nei)}, max is {MAX_NB}")
                 pad_len = MAX_NB - len(cur_nei) #MAX_NB = 15
                 cur_h_nei.extend(cur_nei)
                 cur_h_nei.extend([padding] * pad_len)
 
                 #Neighbors for stop prediction (all neighbors)
                 cur_nei = [h[(node_y.idx,node_x.idx)] for node_y in node_x.neighbors]
+                if len(cur_nei) > MAX_NB: # DEBUG - based on Kevin
+                    raise Exception(f"Too many neighbors for message passing: {len(cur_nei)}, max is {MAX_NB}")
                 pad_len = MAX_NB - len(cur_nei) #MAX_NB = 15
                 cur_o_nei.extend(cur_nei)
                 cur_o_nei.extend([padding] * pad_len)
 
                 #Current clique embedding
                 cur_x.append(node_x.wid)
+                
+                #print("Has Padding Changed? ", torch.eq(padding, padding_save), " has length of padding changed? ", len(padding) == len(padding_save))
+                padding_save = copy.deepcopy(padding) #STB - DEBUG
 
             #Clique embedding
             cur_x = create_var(torch.LongTensor(cur_x))

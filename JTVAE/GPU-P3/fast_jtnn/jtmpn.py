@@ -1,9 +1,11 @@
-import torch
+import torch, sys
 import torch.nn as nn
 import torch.nn.functional as F
-from fast_jtnn.nnutils import create_var, index_select_ND
+from fast_jtnn.nnutils import create_var, index_select_ND, index_select_sum
 from fast_jtnn.chemutils import get_mol
 import rdkit.Chem as Chem
+
+#from scalene import scalene_profiler
 
 ELEM_LIST = ["C", "N", "O", "S", "F", "Si", "P", "Cl", "Br", "Mg", "Na", "Ca", "Fe", "Al", "I", "B", "K", "Se", "Zn", "H", "Cu", "Mn", "unknown",]
 
@@ -37,11 +39,13 @@ class JTMPN(nn.Module):
         self.W_i = nn.Linear(ATOM_FDIM + BOND_FDIM, hidden_size, bias=False)
         self.W_h = nn.Linear(hidden_size, hidden_size, bias=False)
         self.W_o = nn.Linear(ATOM_FDIM + hidden_size, hidden_size)
+    
+    def forward(self, fatoms, fbonds, agraph, bgraph, scope, tree_message): 
+        #tree_message[0] == vec(0)
 
-    def forward(self, fatoms, fbonds, agraph, bgraph, scope, tree_message): #tree_message[0] == vec(0)
-        fatoms = create_var(fatoms)
+        #fatoms = create_var(fatoms) #STB - Refactoring to reduce Cuda memory errors
         fbonds = create_var(fbonds)
-        agraph = create_var(agraph)
+        #agraph = create_var(agraph) #STB - Refactoring to reduce Cuda memory errors
         bgraph = create_var(bgraph)
 
         binput = self.W_i(fbonds)
@@ -49,14 +53,19 @@ class JTMPN(nn.Module):
 
         for i in range(self.depth - 1):
             message = torch.cat([tree_message,graph_message], dim=0) 
-            nei_message = index_select_ND(message, 0, bgraph)
-            nei_message = nei_message.sum(dim=1) #assuming tree_message[0] == vec(0)
+            #nei_message = index_select_ND(message, 0, bgraph)
+            #nei_message = nei_message.sum(dim=1) #assuming tree_message[0] == vec(0)
+            #New function proposed by Kevin to resolve "Cuda out of memory" errors
+            nei_message = index_select_sum(message, 0, bgraph) #####
             nei_message = self.W_h(nei_message)
-            graph_message = F.relu(binput + nei_message)
+            graph_message = F.relu(binput + nei_message) #####
 
+        """ #STB - Refactoring to reduce Cuda memory errors
         message = torch.cat([tree_message,graph_message], dim=0)
-        nei_message = index_select_ND(message, 0, agraph)
-        nei_message = nei_message.sum(dim=1)
+        #nei_message = index_select_ND(message, 0, agraph)
+        #nei_message = nei_message.sum(dim=1)
+        #New function proposed by Kevin to resolve "Cuda out of memory" errors
+        nei_message = index_select_sum(message, 0, agraph)
         ainput = torch.cat([fatoms, nei_message], dim=1)
         atom_hiddens = F.relu(self.W_o(ainput))
         
@@ -66,6 +75,35 @@ class JTMPN(nn.Module):
             mol_vecs.append(mol_vec)
 
         mol_vecs = torch.stack(mol_vecs, dim=0)
+
+        #STB - GPU Profiler
+        #scalene_profiler.stop()
+        """ #STB - Refactoring to reduce Cuda memory errors
+
+        mol_vecs = self.recombine(tree_message, scope, graph_message, fatoms, agraph)
+
+        del agraph, fatoms, fbonds, tree_message, scope, graph_message, bgraph, message, nei_message, 
+
+        return mol_vecs
+    
+    def recombine(self, tree_message, scope, graph_message, fatoms, agraph): #STB - Refactoring to reduce Cuda memory errors
+        
+        fatoms = create_var(fatoms)
+        agraph = create_var(agraph)
+
+        message = torch.cat([tree_message,graph_message], dim=0)
+
+        nei_message = index_select_sum(message, 0, agraph)
+        ainput = torch.cat([fatoms, nei_message], dim=1)
+        atom_hiddens = F.relu(self.W_o(ainput))
+
+        mol_vecs = []
+        for st,le in scope:
+            mol_vec = atom_hiddens.narrow(0, st, le).sum(dim=0) / le
+            mol_vecs.append(mol_vec)
+
+        mol_vecs = torch.stack(mol_vecs, dim=0)
+
         return mol_vecs
 
     @staticmethod

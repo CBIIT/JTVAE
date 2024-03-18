@@ -77,7 +77,6 @@ class JTNNVAE(nn.Module):
         x_tree_vecs, x_tree_mess, x_mol_vecs = self.encode(x_jtenc_holder, x_mpn_holder)
         z_tree_vecs,tree_kl = self.rsample(x_tree_vecs, self.T_mean, self.T_var)
         z_mol_vecs,mol_kl = self.rsample(x_mol_vecs, self.G_mean, self.G_var)
-
         kl_div = tree_kl + mol_kl
         word_loss, topo_loss, word_acc, topo_acc = self.decoder(x_batch, z_tree_vecs)
         assm_loss, assm_acc = self.assm(x_batch, x_jtmpn_holder, z_mol_vecs, x_tree_mess)
@@ -87,16 +86,13 @@ class JTNNVAE(nn.Module):
         jtmpn_holder,batch_idx = jtmpn_holder
         fatoms,fbonds,agraph,bgraph,scope = jtmpn_holder
         batch_idx = create_var(batch_idx)
-
         cand_vecs = self.jtmpn(fatoms, fbonds, agraph, bgraph, scope, x_tree_mess)
-
         x_mol_vecs = x_mol_vecs.index_select(0, batch_idx)
         x_mol_vecs = self.A_assm(x_mol_vecs) #bilinear
         scores = torch.bmm(
                 x_mol_vecs.unsqueeze(1),
                 cand_vecs.unsqueeze(-1)
         ).squeeze()
-        
         cnt,tot,acc = 0,0,0
         all_loss = []
         for i,mol_tree in enumerate(mol_batch):
@@ -113,12 +109,11 @@ class JTNNVAE(nn.Module):
 
                 label = create_var(torch.LongTensor([label]))
                 all_loss.append( self.assm_loss(cur_score.view(1,-1), label) )
-        
         all_loss = sum(all_loss) / len(mol_batch)
         return all_loss, acc * 1.0 / cnt
 
     def decode(self, x_tree_vecs, x_mol_vecs, prob_decode):
-        #currently do not support batch decoding
+        #TODO: currently do not support batch decoding
         assert x_tree_vecs.size(0) == 1 and x_mol_vecs.size(0) == 1
 
         pred_root,pred_nodes = self.decoder.decode(x_tree_vecs, prob_decode)
