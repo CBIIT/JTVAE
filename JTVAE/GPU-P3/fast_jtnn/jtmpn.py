@@ -55,17 +55,10 @@ class JTMPN(nn.Module):
             message = torch.cat([tree_message,graph_message], dim=0) 
             #nei_message = index_select_ND(message, 0, bgraph)
             #nei_message = nei_message.sum(dim=1) #assuming tree_message[0] == vec(0)
-            #print("JTMPN forward for loop 2: ", torch.cuda.mem_get_info()[0]/1000000000)
             #New function proposed by Kevin to resolve "Cuda out of memory" errors
             nei_message = index_select_sum(message, 0, bgraph) #####
-            #print("JTMPN forward for loop 3: ", torch.cuda.mem_get_info()[0]/1000000000)
             nei_message = self.W_h(nei_message)
-            #print("JTMPN forward for loop 4: ", torch.cuda.mem_get_info()[0]/1000000000)
             graph_message = F.relu(binput + nei_message) #####
-        
-        #print("after JTMPN forward for loop: ")
-        #print(torch.cuda.mem_get_info()[0]/1000000000)
-        #print()
 
         """ #STB - Refactoring to reduce Cuda memory errors
         message = torch.cat([tree_message,graph_message], dim=0)
@@ -89,22 +82,11 @@ class JTMPN(nn.Module):
 
         mol_vecs = self.recombine(tree_message, scope, graph_message, fatoms, agraph)
 
-        #print("after JTMPN recombine: ")
-        #print(torch.cuda.mem_get_info()[0]/1000000000)
-        #print("mol_vecs size: ", sys.getsizeof(mol_vecs))
-        #print()
-
         del agraph, fatoms, fbonds, tree_message, scope, graph_message, bgraph, message, nei_message, 
-        
-        #print("after deletion: ")
-        #print(torch.cuda.mem_get_info()[0]/1000000000)
-        #print("mol_vecs size: ", sys.getsizeof(mol_vecs))
-        #print()
 
         return mol_vecs
     
     def recombine(self, tree_message, scope, graph_message, fatoms, agraph): #STB - Refactoring to reduce Cuda memory errors
-        
         
         fatoms = create_var(fatoms)
         agraph = create_var(agraph)

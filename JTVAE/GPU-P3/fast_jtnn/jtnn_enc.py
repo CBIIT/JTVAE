@@ -31,9 +31,9 @@ class JTNNEncoder(nn.Module):
         messages = self.GRU(messages, fmess, mess_graph)
 
         ###
-        #New function proposed by Kevin to resolve "Cuda out of memory" errors
-        #mess_nei = index_select_ND(messages, 0, node_graph)
-        #node_vecs = torch.cat([fnode, mess_nei.sum(dim=1)], dim=-1)
+        #New function proposed by Kevin to resolve "Cuda out of memory" errors. Successfully reduces some errors
+        #mess_nei = index_select_ND(messages, 0, node_graph) #remove
+        #node_vecs = torch.cat([fnode, mess_nei.sum(dim=1)], dim=-1) #remove
         mess_nei = index_select_sum(messages, 0, node_graph)
         node_vecs = torch.cat([fnode, mess_nei], dim=-1)
         ###

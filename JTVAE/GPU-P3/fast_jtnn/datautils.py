@@ -80,6 +80,7 @@ class MolTreeFolder(object):
             dataset = MolTreeDataset(batches, self.vocab, self.assm)
             
             if self.mult_gpus == True:
+                #For DDP, sampler must be set to DistributedSampler to ensure that each rank gets a different mini batch of molecules
                 dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=self.num_workers, collate_fn=lambda x:x[0], sampler=DistributedSampler(dataset))
             else:
                 dataloader = DataLoader(dataset, batch_size=1, shuffle=False, num_workers=self.num_workers, collate_fn=lambda x:x[0])

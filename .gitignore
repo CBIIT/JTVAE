@@ -2,6 +2,7 @@
 *.ipynb
 *.pkl
 *.dat
+*.pyc
 
 MODEL-TRAIN/
 .ipynb_checkpoints/
@@ -9,6 +10,7 @@ QMUGS/
 PARP/
 NaturalProducts/
 LOGP-JTVAE-PAPER/Mol-Opt/DATA/*.txt
+__pycache__/
 
 
 !GMD/LOGP-JTVAE-PAPER/Mol-Opt/ORIGINAL-JTVAE-RESULTS/results1/*.dat
