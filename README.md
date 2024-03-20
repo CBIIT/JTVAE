@@ -5,6 +5,7 @@ An autoencoder is typically composed of two neural networks: an encoder and a de
 
 Autoencoders are used in the drug discovery realm to encode molecules from their SMILES string to a vector of numbers then decode back to the original SMILES string. This allows us to attempt to use optimization techniques on the latent vector to create new molecules with optimized properties.
 
+
 ## Installation
 This software uses two separate conda environments: one for GPU and on for CPU. To install these two environments, it is recommended to use the provided environment specification files provided in this repository. Follow the below installations steps to create the two environments:
 
@@ -28,6 +29,7 @@ While we haven't modified the underlying method of JTVAE, we have greatly improv
 - Provided batch scripts for each of the steps
 ```
 
+
 ## Getting started
 There are four steps involved in training a JTVAE model:
 
@@ -37,6 +39,8 @@ There are four steps involved in training a JTVAE model:
 3. Training
 4. Reconstruction Evaluation
 ```
+
+The below sections further describe each of the steps, describes whether it uses a GPU or CPU, where to find the executable python file, and where to find an example slurm file for running that section on a Slurm managed system. It is recommended that for each project you want to use this for, to create a working directory outside of this repositories directory structure to preserve your data. Updating your local repository with remote version changes or creating any pull requests to make suggested improvements may overwrite your data if it is kept within your local copy of this repository.
 
 ### Vocabulary Determination
 JTVAE requires generating a set of vocabulary which is specific to the compounds used for the train and test sets. The vocabulary is created by decomposing the list of SMILES strings into a list of unique functional units. This vocabulary is used in the encoding/decoding steps to describe the molecule and the pieces that make it up.
@@ -79,6 +83,7 @@ Example: LOGP-JTVAE-PAPER/Recon-Eval/Slurm-EDF-CPU
 If you have any issues while using or installing this code, please create a new issue in the Issues tab of this github page. Someone will respond to the issue as soon as possible.
 
 Feedback is always greatly appreciated! This code is still in development, changes will continue to be pushed and we have many plans for future development!
+
 
 ## Open-Source Development
 If you want to suggest changes to the code base, please fork from the main branch then create a pull request. 
