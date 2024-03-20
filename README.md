@@ -31,6 +31,43 @@ There are four steps involved in training a JTVAE model:
 4. Reconstruction Evaluation
 ```
 
+### Vocabulary Determination
+JTVAE requires generating a set of vocabulary which is specific to the compounds used for the train and test sets. The vocabulary is created by decomposing the list of SMILES strings into a list of unique functional units. This vocabulary is used in the encoding/decoding steps to describe the molecule and the pieces that make it up.
+
+```
+GPU/CPU: CPU
+Executable location: JTVAE/CPU-P3/fast_jtnn/mol_tree.py
+Example: LOGP-JTVAE-PAPER/Vocabulary/Slurm-Vocab-CPU
+```
+
+### Preprocessing
+The training set of SMILES strings are split and saved into a specified number of pickled files. 
+
+```
+GPU/CPU: CPU
+Executable location: JTVAE/CPU-P3/fast_molvae/preprocess.py
+Example: LOGP-JTVAE-PAPER/Preprocess/Slurm-Preprocess-CPU
+```
+
+### Training
+Autoencoder/Model is trained using the preprocessed files of SMILES strings.
+
+```
+GPU/CPU: GPU (one or more)
+Executable location: JTVAE/GPU-P3/fast_molvae/vae_train_gpu.py
+Example: LOGP-JTVAE-PAPER/Train/Slurm-Train-GPU
+```
+
+### Reconstruction Accuracy
+The test set of SMILES strings (must not include any SMILES strings used in the training step) is put through the trained autoencoder by encoding the SMILES string into a latent vector then immediately decoded back to a SMILES string. The performance of the trained model is reported as the number and percent of SMILES strings that were correctly reconstructed.
+
+```
+GPU/CPU: CPU
+Executable location: JTVAE/CPU-P3/fast_molvae/EDF.py
+Example: LOGP-JTVAE-PAPER/Recon-Eval/Slurm-EDF-CPU
+```
+
+
 ## Issues
 If you have any issues while using or installing this code, please create a new issue in the Issues tab of this github page. Someone will respond to the issue as soon as possible.
 
