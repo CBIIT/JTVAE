@@ -6,6 +6,13 @@ An autoencoder is typically composed of two neural networks: an encoder and a de
 Autoencoders are used in the drug discovery realm to encode molecules from their SMILES string to a vector of numbers then decode back to the original SMILES string. This allows us to attempt to use optimization techniques on the latent vector to create new molecules with optimized properties.
 
 ## Installation
+This software uses two separate conda environments: one for GPU and on for CPU. To install these two environments, it is recommended to use the provided environment specification files provided in this repository. Follow the below installations steps to create the two environments:
+
+```
+cd conda
+conda create --name JTVAE-gpu-env --file gpu_env_file.txt
+conda create --name JTVAE-cpu-env --file cpu_env_file.txt
+```
 
 
 ## How we improved upon the original JTVAE method
