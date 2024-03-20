@@ -16,20 +16,6 @@ conda create --name JTVAE-cpu-env --file cpu_env_file.txt
 ```
 
 
-## How we improved upon the original JTVAE method
-While we haven't modified the underlying method of JTVAE, we have greatly improved the code and have added some new tools. Below is a description of some of the improvements we have made:
-
-```
-- Upgraded the code from Python 2 to Python 3
-- Enabled batch training
-- Tested the efficiency of running each of the 4 training steps on both CPU and GPU
-- Modified code to enable GPU for the training step
-- Integrated Pytorch's Distributed Data Parallel (DDP) method into the training step to parallelize model training across more than one GPU to accelerate training and reduce memory overloading
-- Added parameters to enable the user to further define the latent space
-- Provided batch scripts for each of the steps
-```
-
-
 ## Getting started
 There are four steps involved in training a JTVAE model:
 
@@ -76,6 +62,20 @@ The test set of SMILES strings (must not include any SMILES strings used in the 
 GPU/CPU: CPU
 Executable location: JTVAE/CPU-P3/fast_molvae/EDF.py
 Example: LOGP-JTVAE-PAPER/Recon-Eval/Slurm-EDF-CPU
+```
+
+
+## How we improved upon the original JTVAE method
+While we haven't modified the underlying method of JTVAE, we have greatly improved the code and have added some new tools. Below is a description of some of the improvements we have made:
+
+```
+- Upgraded the code from Python 2 to Python 3
+- Enabled batch training
+- Tested the efficiency of running each of the 4 training steps on both CPU and GPU
+- Modified code to enable GPU for the training step
+- Integrated Pytorch's Distributed Data Parallel (DDP) method into the training step to parallelize model training across more than one GPU to accelerate training and reduce memory overloading
+- Added parameters to enable the user to further define the latent space
+- Provided batch scripts for each of the steps
 ```
 
 
